@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quiz App</title>
+  <style>
+    .bg-gradient { background: linear-gradient(to bottom right, #38a169, #4299e1, #9f7aea); }
+    .text-white { color: white; }
+    .text-yellow-300 { color: #ecc94b; }
+    .text-red-500 { color: #f56565; }
+    .rounded-lg { border-radius: 0.5rem; }
+    .shadow-xl { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); }
+    .text-center { text-align: center; }
+    .p-8 { padding: 2rem; }
+    .mb-8 { margin-bottom: 2rem; }
+    .font-extrabold { font-weight: 800; }
+    .grid { display: grid; }
+    .grid-cols-2 { grid-template-columns: repeat(2, 1fr); }
+    .gap-6 { gap: 1.5rem; }
+    .py-4 { padding-top: 1rem; padding-bottom: 1rem; }
+    .px-6 { padding-left: 1.5rem; padding-right: 1.5rem; }
+    .font-semibold { font-weight: 600; }
+    .hover\:bg-yellow-300:hover { background-color: #ecc94b; }
+    .cursor-not-allowed { cursor: not-allowed; }
+    .hover\:shadow-lg:hover { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); }
+    .text-lg { font-size: 1.125rem; }
+    .font-medium { font-weight: 500; }
+    .animate-pulse { animation: pulse 2s infinite; }
+    .animate-bounce { animation: bounce 1s infinite; }
+    /* Additional styles for animation */
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script>
+    function createQuizQuestion(question, options, onAnswer, onTimeout) {
+      let clickable = false;
+      let counter = 30;
+      let intervalId;
+      let timeoutId1;
+      let timeoutId2;
+
+      const container = document.createElement('div');
+      container.className = 'p-8 bg-gradient rounded-lg shadow-xl';
+
+      const questionElem = document.createElement('h2');
+      questionElem.className = 'text-3xl font-extrabold mb-8 text-white text-center';
+      questionElem.textContent = question;
+      container.appendChild(questionElem);
+
+      const optionsContainer = document.createElement('div');
+      optionsContainer.className = 'grid grid-cols-2 gap-6 mb-8';
+      container.appendChild(optionsContainer);
+
+      options.forEach(option => {
+        const button = document.createElement('button');
+        button.className = 'py-4 px-6 bg-white text-gray-800 font-semibold rounded-lg shadow-md';
+        button.textContent = option;
+        button.disabled = true;
+        button.style.transition = 'transform 0.3s ease-in-out';
+
+        button.addEventListener('click', () => {
+          if (clickable) {
+            onAnswer(option);
+            clearInterval(intervalId);
+            clearTimeout(timeoutId1);
+            clearTimeout(timeoutId2);
+          }
+        });
+
+        optionsContainer.appendChild(button);
+      });
+
+      const counterElem = document.createElement('div');
+      counterElem.className = 'text-center text-lg font-medium text-white';
+      container.appendChild(counterElem);
+
+      function updateCounter() {
+        counter--;
+        if (counter > 10) {
+          counterElem.className = 'text-center text-lg font-medium text-white';
+        } else if (counter > 5) {
+          counterElem.className = 'text-center text-lg font-medium text-yellow-300 animate-pulse';
+        } else {
+          counterElem.className = 'text-center text-lg font-medium text-red-500 animate-bounce';
+        }
+
+        if (clickable) {
+          counterElem.textContent = `${counter} seconds remaining`;
+        } else {
+          counterElem.textContent = `${counter - 20} seconds to unlock answers`;
+        }
+
+        if (counter <= 0) {
+          clearInterval(intervalId);
+          onTimeout();
+        }
+      }
+
+      function startTimers() {
+        counter = 30;
+        clickable = false;
+        optionsContainer.childNodes.forEach(button => {
+          button.disabled = true;
+          button.classList.add('cursor-not-allowed');
+        });
+
+        intervalId = setInterval(updateCounter, 1000);
+        timeoutId1 = setTimeout(() => {
+          clickable = true;
+          optionsContainer.childNodes.forEach(button => {
+            button.disabled = false;
+            button.classList.remove('cursor-not-allowed');
+            button.classList.add('hover:bg-yellow-300', 'hover:shadow-lg');
+          });
+        }, 10000);
+        timeoutId2 = setTimeout(onTimeout, 30000);
+      }
+
+      startTimers();
+
+      return container;
+    }
+
+    function createHome() {
+      const root = document.getElementById('root');
+      let currentQuestionIndex = 0;
+      const questions = [];
+      const answers = [];
+
+      function fetchQuestions() {
+        return fetch('https://jsonplaceholder.typicode.com/posts')
+          .then(response => response.json())
+          .then(data => {
+            return data.slice(0, 10).map(item => ({
+              question: item.title,
+              options: ['Option A', 'Option B', 'Option C', 'Option D']
+            }));
+          });
+      }
+
+      function handleAnswer(answer) {
+        answers.push(answer);
+        currentQuestionIndex++;
+        if (currentQuestionIndex < questions.length) {
+          renderQuestion();
+        } else {
+          showResults();
+        }
+      }
+
+      function handleTimeout() {
+        answers.push('');
+        currentQuestionIndex++;
+        if (currentQuestionIndex < questions.length) {
+          renderQuestion();
+        } else {
+          showResults();
+        }
+      }
+
+      function renderQuestion() {
+        root.innerHTML = '';
+        const questionData = questions[currentQuestionIndex];
+        const questionElem = createQuizQuestion(questionData.question, questionData.options, handleAnswer, handleTimeout);
+        root.appendChild(questionElem);
+      }
+
+      function showResults() {
+        root.innerHTML = '';
+        const resultsContainer = document.createElement('div');
+        resultsContainer.className = 'p-8 bg-white rounded-lg shadow-lg max-w-3xl w-full';
+
+        const resultsTitle = document.createElement('h2');
+        resultsTitle.className = 'text-2xl font-bold mb-6 text-center';
+        resultsTitle.textContent = 'Quiz Results';
+        resultsContainer.appendChild(resultsTitle);
+
+        questions.forEach((question, index) => {
+          const questionContainer = document.createElement('div');
+          questionContainer.className = 'p-4 border rounded-lg shadow-md bg-gradient-to-r from-green-200 via-blue-200 to-purple-200';
+
+          const questionText = document.createElement('h3');
+          questionText.className = 'text-lg font-semibold mb-2';
+          questionText.textContent = question.question;
+          questionContainer.appendChild(questionText);
+
+          const answerText = document.createElement('p');
+          answerText.className = 'text-gray-800';
+          answerText.innerHTML = `<span class="font-medium">Your Answer:</span> ${answers[index] || 'No answer'}`;
+          questionContainer.appendChild(answerText);
+
+          resultsContainer.appendChild(questionContainer);
+        });
+
+        root.appendChild(resultsContainer);
+      }
+
+      fetchQuestions().then(fetchedQuestions => {
+        questions.push(...fetchedQuestions);
+        renderQuestion();
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', createHome);
+  </script>
+</body>
+</html>
